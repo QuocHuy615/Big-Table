@@ -6,12 +6,10 @@ import './TableStyles.css';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { DatePicker } from 'antd';
-import { InputNumber } from 'antd';
 import type { Filters } from '../../interfaces/bank.interfaces';
 import useSearchParam from '../../hooks/useSearchParam';
-import { Button, Tooltip } from 'antd';
 import type { Dayjs } from 'dayjs';
+import SearchFilterHeader from './SearchFilterHeader';
 
 export default function Table() {
   const [displayItems, setDisplayItems] = useState<BankData[]>([]);
@@ -32,8 +30,6 @@ export default function Table() {
   });
 
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
-
-  const { RangePicker } = DatePicker;
 
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -237,6 +233,28 @@ export default function Table() {
 
     return (prevOrder! + nextOrder!) / 2;
   };
+
+  const handleReset = () => {
+    setFilters({
+      fromDate: '',
+      toDate: '',
+      minValue: null,
+      maxValue: null,
+    });
+    setInputValue('');
+    setSearch('');
+    setDateRange(null);
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.delete('search');
+      const qs = params.toString();
+      const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+      window.history.replaceState(null, '', newUrl);
+    } catch {
+      // ignore
+    }
+  };
  
   if (loadingInitial) {
     return <div className="loading-screen">Đang tải dữ liệu...</div>;
@@ -244,89 +262,16 @@ export default function Table() {
 
   return (
     <>
-      <div className="search-container">
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="search"
-          value={inputValue}
-          onChange={onInputChange}
-          className="search-input"
-        />
-
-        <RangePicker 
-          style={{ marginLeft: 16 }}
-          value={dateRange}
-          onChange={(dates, dateStrings) => {
-            setDateRange(dates);
-            if (!dates) {
-              setFilters(prev => ({
-                ...prev,
-                fromDate: '',
-                toDate: '',
-              }));
-              return;
-            }
-
-            setFilters(prev => ({
-              ...prev,
-              fromDate: dateStrings[0],
-              toDate: dateStrings[1],
-            }));
-          }}
-        />
-
-        <InputNumber
-          placeholder="Min value"
-          min={0}
-          value={filters.minValue !== null ? filters.minValue : undefined}
-          onChange={(value) =>
-            setFilters(prev => ({
-              ...prev,
-              minValue: typeof value === 'number' ? value : null
-            }))
-          }
-        />
-
-        <InputNumber
-          placeholder="Max value"
-          min={0}
-          value={filters.maxValue !== null ? filters.maxValue : undefined}
-          onChange={(value) =>
-            setFilters(prev => ({
-              ...prev,
-              maxValue: typeof value === 'number' ? value : null
-            }))
-          }
-        />
-
-        <Tooltip title="Reset filters">
-          <Button 
-            onClick={() => {
-              setFilters({
-                fromDate: '',
-                toDate: '',
-                minValue: null,
-                maxValue: null,
-              });
-              setInputValue('');
-              setSearch('');
-              setDateRange(null);
-              try {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('keyword');
-                const qs = params.toString();
-                const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
-                window.history.replaceState(null, '', newUrl);
-              } catch {
-                // ignore
-              }
-            }}
-          >
-            Reset
-          </Button>
-        </Tooltip>
-      </div>
+      <SearchFilterHeader
+        ref={inputRef}
+        inputValue={inputValue}
+        onInputChange={onInputChange}
+        dateRange={dateRange}
+        setDateRange={setDateRange}
+        filters={filters}
+        setFilters={setFilters}
+        onReset={handleReset}
+      />
       <DndContext
         collisionDetection={closestCenter}
         modifiers={[restrictToVerticalAxis]}
