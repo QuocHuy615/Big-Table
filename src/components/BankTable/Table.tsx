@@ -9,6 +9,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { DatePicker } from 'antd';
 import { InputNumber } from 'antd';
 import type { Filters } from '../../interfaces/bank.interfaces';
+import useSearchParam from '../../hooks/useSearchParam';
 import { Button, Tooltip } from 'antd';
 import type { Dayjs } from 'dayjs';
 
@@ -22,10 +23,7 @@ export default function Table() {
   const CHUNK_SIZE = 2000;
 
   const [filteredItems, setFilteredItems] = useState<BankData[]>([]);
-  const initialKeyword = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('search') ?? '') : '';
-  const [search, setSearch] = useState(initialKeyword);
-  const [inputValue, setInputValue] = useState(initialKeyword);
-  const debounceTimeout = useRef<number | null>(null);
+  const { inputValue, search, setInputValue, setSearch, onInputChange } = useSearchParam('search', 500);
   const [filters, setFilters] = useState<Filters>({
     fromDate: '',
     toDate: '',
@@ -39,7 +37,7 @@ export default function Table() {
 
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // auto focus
+  // auto focus input search
   useEffect(() => {
     if (!loadingInitial && inputRef.current) {
       inputRef.current.focus();
@@ -139,47 +137,10 @@ export default function Table() {
     fetchBigData();
   }, []);
 
-  // debounce search
-  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-
-    setInputValue(value);
-
-    if(debounceTimeout.current) {
-      clearTimeout(debounceTimeout.current);
-    }
-
-    debounceTimeout.current = window.setTimeout(() => {
-      setSearch(value);
-      try {
-        const params = new URLSearchParams(window.location.search);
-        if (value) params.set('search', value);
-        else params.delete('search');
-        const qs = params.toString();
-        const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
-        window.history.replaceState(null, '', newUrl);
-      } catch {
-          // ignore
-      }
-      console.log('Search triggered for:', value);
-    }, 500);
-  } 
-
   useEffect(() => {
     applySearchAndFilters();
   }, [applySearchAndFilters]);
 
-  // sync when browser history changes 
-  useEffect(() => {
-    const handlePop = () => {
-      const k = (new URLSearchParams(window.location.search).get('search')) ?? '';
-      setInputValue(k);
-      setSearch(k);
-    };
-
-    window.addEventListener('popstate', handlePop);
-    return () => window.removeEventListener('popstate', handlePop);
-  }, []);
 
   // Hàm kích hoạt khi cuộn gần hết 2000 dòng hiện tại
   const handleRowsRendered = useCallback(({ stopIndex: visibleStopIndex }: { stopIndex: number }) => {
