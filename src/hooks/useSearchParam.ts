@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { readSearchParam, replaceSearchParam } from '../utils/bankTableParams';
 
 export interface UseSearchParamResult {
   inputValue: string;
@@ -9,26 +10,13 @@ export interface UseSearchParamResult {
 }
 
 export default function useSearchParam(paramName = 'search', delay = 500): UseSearchParamResult {
-  const initial = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get(paramName) ?? '') : '';
+  const initial = readSearchParam(paramName);
   const [inputValue, setInputValue] = useState<string>(initial);
   const [search, setSearch] = useState<string>(initial);
   const timeoutRef = useRef<number | null>(null);
 
   const updateUrl = useCallback((value: string) => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-
-      if (value) 
-        params.set(paramName, value);
-      else 
-        params.delete(paramName);
-    
-      const qs = params.toString();
-      const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
-      window.history.replaceState(null, '', newUrl);
-    } catch {
-      // ignore
-    }
+    replaceSearchParam(paramName, value);
   }, [paramName]);
 
   const onInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -47,13 +35,19 @@ export default function useSearchParam(paramName = 'search', delay = 500): UseSe
 
   useEffect(() => {
     const handlePop = () => {
-      const k = (new URLSearchParams(window.location.search).get(paramName)) ?? '';
-      setInputValue(k);
-      setSearch(k);
+      const value = readSearchParam(paramName);
+      setInputValue(value);
+      setSearch(value);
     };
 
     window.addEventListener('popstate', handlePop);
-    return () => window.removeEventListener('popstate', handlePop);
+    return () => {
+      window.removeEventListener('popstate', handlePop);
+
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
   }, [paramName]);
 
   return { inputValue, search, setInputValue, setSearch, onInputChange };

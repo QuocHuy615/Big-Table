@@ -10,6 +10,14 @@ import type { Filters } from '../../interfaces/bank.interfaces';
 import useSearchParam from '../../hooks/useSearchParam';
 import type { Dayjs } from 'dayjs';
 import SearchFilterHeader from './SearchFilterHeader';
+import {
+  DEFAULT_FILTERS,
+  applyFiltersToData,
+  buildUrlFromState,
+  getDateRangeFromFilters,
+  getFiltersFromUrl,
+  parseNumberParam,
+} from '../../utils/bankTableParams';
 
 export default function Table() {
   const [displayItems, setDisplayItems] = useState<BankData[]>([]);
@@ -22,16 +30,52 @@ export default function Table() {
 
   const [filteredItems, setFilteredItems] = useState<BankData[]>([]);
   const { inputValue, search, setInputValue, setSearch, onInputChange } = useSearchParam('search', 500);
-  const [filters, setFilters] = useState<Filters>({
-    fromDate: '',
-    toDate: '',
-    minValue: null,
-    maxValue: null,
-  });
+  const initialFilters = getFiltersFromUrl();
+  const [filters, setFilters] = useState<Filters>(() => initialFilters);
 
-  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(() => getDateRangeFromFilters(initialFilters));
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const filtersRef = useRef(filters);
+  const searchRef = useRef(search);
+
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
+
+  useEffect(() => {
+    searchRef.current = search;
+  }, [search]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const nextUrl = buildUrlFromState(search, filters);
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState(null, '', nextUrl);
+    }
+  }, [filters, search]);
+
+  const syncStateFromUrl = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    const nextFilters = {
+      fromDate: params.get('fromDate') ?? '',
+      toDate: params.get('toDate') ?? '',
+      minValue: parseNumberParam(params.get('minValue')),
+      maxValue: parseNumberParam(params.get('maxValue')),
+    } satisfies Filters;
+
+    const nextSearch = params.get('search') ?? '';
+
+    setInputValue(nextSearch);
+    setSearch(nextSearch);
+    setFilters(nextFilters);
+    setDateRange(getDateRangeFromFilters(nextFilters));
+  }, [setInputValue, setSearch]);
 
   // auto focus input search
   useEffect(() => {
@@ -40,41 +84,18 @@ export default function Table() {
     }
   }, [loadingInitial]);
 
+  useEffect(() => {
+    const handlePopState = () => {
+      syncStateFromUrl();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [syncStateFromUrl]);
+
   // search and filter
   const applySearchAndFilters = useCallback(() => {
-    let nextItems = allDataRef.current;
-
-    // filter by date range
-    if (filters.fromDate) {
-      const fromTimestamp = new Date(filters.fromDate).getTime();
-      nextItems = nextItems.filter(item => item.timestamp! >= fromTimestamp);
-    }
-
-    if (filters.toDate) {
-      const toTimestamp = new Date(filters.toDate).getTime();
-      nextItems = nextItems.filter(item => item.timestamp! <= toTimestamp);
-    }
-
-    // filter by value range
-    const minValue = filters.minValue;
-    if (minValue !== null) {
-      nextItems = nextItems.filter(item => item.Value >= minValue);
-    }
-
-    const maxValue = filters.maxValue;
-    if (maxValue !== null) {
-      nextItems = nextItems.filter(item => item.Value <= maxValue);
-    }
-
-    const keywords = search.trim().toLowerCase();
-    if (keywords !== '') {
-      nextItems = nextItems.filter(item => {
-        return (
-          item.Domain.toLowerCase().includes(keywords) ||
-          item.Location.toLowerCase().includes(keywords)
-        );
-      });
-    }
+    const nextItems = applyFiltersToData(allDataRef.current, filters, search);
 
     setFilteredItems(nextItems);
     setDisplayItems(nextItems.slice(0, CHUNK_SIZE));
@@ -120,11 +141,11 @@ export default function Table() {
         });
         
         allDataRef.current = parsedDataWithIds; 
-        setFilteredItems(parsedDataWithIds);
-        
-        setDisplayItems(parsedDataWithIds.slice(0,CHUNK_SIZE));
+        const nextItems = applyFiltersToData(parsedDataWithIds, filtersRef.current, searchRef.current);
 
-        pointerRef.current = CHUNK_SIZE;
+        setFilteredItems(nextItems);
+        setDisplayItems(nextItems.slice(0, CHUNK_SIZE));
+        pointerRef.current = Math.min(CHUNK_SIZE, nextItems.length);
       } catch (error) {
         console.error("Lỗi khi đọc file JSON:", error);
       } finally {
@@ -237,25 +258,10 @@ export default function Table() {
   };
 
   const handleReset = () => {
-    setFilters({
-      fromDate: '',
-      toDate: '',
-      minValue: null,
-      maxValue: null,
-    });
+    setFilters(DEFAULT_FILTERS);
     setInputValue('');
     setSearch('');
     setDateRange(null);
-
-    try {
-      const params = new URLSearchParams(window.location.search);
-      params.delete('search');
-      const qs = params.toString();
-      const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
-      window.history.replaceState(null, '', newUrl);
-    } catch {
-      // ignore
-    }
   };
  
   if (loadingInitial) {
