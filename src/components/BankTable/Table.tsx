@@ -44,6 +44,7 @@ export default function Table() {
   const applySearchAndFilters = useCallback(() => {
     let nextItems = allDataRef.current;
 
+    // filter by date range
     if (filters.fromDate) {
       const fromTimestamp = new Date(filters.fromDate).getTime();
       nextItems = nextItems.filter(item => item.timestamp! >= fromTimestamp);
@@ -54,6 +55,7 @@ export default function Table() {
       nextItems = nextItems.filter(item => item.timestamp! <= toTimestamp);
     }
 
+    // filter by value range
     const minValue = filters.minValue;
     if (minValue !== null) {
       nextItems = nextItems.filter(item => item.Value >= minValue);

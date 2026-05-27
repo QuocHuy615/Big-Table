@@ -17,8 +17,12 @@ export default function useSearchParam(paramName = 'search', delay = 500): UseSe
   const updateUrl = useCallback((value: string) => {
     try {
       const params = new URLSearchParams(window.location.search);
-      if (value) params.set(paramName, value);
-      else params.delete(paramName);
+
+      if (value) 
+        params.set(paramName, value);
+      else 
+        params.delete(paramName);
+    
       const qs = params.toString();
       const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
       window.history.replaceState(null, '', newUrl);
